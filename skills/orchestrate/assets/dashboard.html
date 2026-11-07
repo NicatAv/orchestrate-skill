@@ -1,0 +1,89 @@
+<style>
+.o-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px}
+.o-pill{font-size:12px;padding:2px 10px;border-radius:var(--radius);white-space:nowrap}
+.o-met{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin:0 0 14px}
+.o-met>div{background:var(--surface-1);border-radius:var(--radius);padding:12px 14px}
+.o-bar{height:6px;border-radius:3px;background:var(--surface-1);overflow:hidden}
+.o-bar>i{display:block;height:100%;border-radius:3px}
+.o-wave{font-size:13px;color:var(--text-secondary);margin:16px 0 6px}
+.o-list{border:0.5px solid var(--border);border-radius:12px;overflow:hidden}
+.o-row{display:grid;grid-template-columns:22px minmax(0,1fr) 130px;gap:12px;align-items:center;padding:10px 14px}
+.o-row+.o-row{border-top:0.5px solid var(--border)}
+.o-mono{font-family:var(--font-mono);font-size:12px;color:var(--text-muted)}
+.o-note{font-size:13px;color:var(--text-secondary);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.o-btn{font-size:12px;padding:2px 8px;margin-top:6px}
+</style>
+<h2 id="o-sr" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Orchestration dashboard</h2>
+<div id="o-root"></div>
+<script>
+const STATE = {"lang":"ru","title":"Demo","goal":"","phase":"plan","base_branch":"main","updated":"","tasks":[],"log":[]};
+(function () {
+  const L = {
+    ru: { total: "Задач", done: "Готово", running: "В работе", blocked: "Нужно внимание", wave: "Волна", after: "после", overall: "Общий прогресс", log: "Последние события", refresh: "Обновить статус", details: "Подробнее", updated: "обновлено", base: "база",
+      phase: { clarify: "Уточнение", plan: "План", running: "Выполнение", integrating: "Интеграция", done: "Завершено" },
+      st: { planned: "Запланировано", running: "В работе", blocked: "Заблокировано", rework: "Доработка", done: "Готово", failed: "Ошибка" },
+      pRefresh: "Обнови статус оркестрации и дашборд", pDetails: id => "Покажи подробности по задаче " + id },
+    en: { total: "Tasks", done: "Done", running: "Running", blocked: "Needs attention", wave: "Wave", after: "after", overall: "Overall progress", log: "Recent events", refresh: "Refresh status", details: "Details", updated: "updated", base: "base",
+      phase: { clarify: "Clarifying", plan: "Plan", running: "Running", integrating: "Integrating", done: "Done" },
+      st: { planned: "Planned", running: "Running", blocked: "Blocked", rework: "Rework", done: "Done", failed: "Failed" },
+      pRefresh: "Refresh the orchestration status and dashboard", pDetails: id => "Show details for task " + id }
+  };
+  const t = L[STATE.lang] || L.ru;
+  const S = {
+    planned: { c: "var(--text-muted)", bg: "var(--surface-1)", bar: "var(--border-strong)", i: "ti-clock" },
+    running: { c: "var(--text-accent)", bg: "var(--bg-accent)", bar: "var(--text-accent)", i: "ti-loader-2" },
+    blocked: { c: "var(--text-warning)", bg: "var(--bg-warning)", bar: "var(--text-warning)", i: "ti-alert-triangle" },
+    rework: { c: "var(--text-warning)", bg: "var(--bg-warning)", bar: "var(--text-warning)", i: "ti-refresh" },
+    done: { c: "var(--text-success)", bg: "var(--bg-success)", bar: "var(--text-success)", i: "ti-check" },
+    failed: { c: "var(--text-danger)", bg: "var(--bg-danger)", bar: "var(--text-danger)", i: "ti-x" }
+  };
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const tasks = Array.isArray(STATE.tasks) ? STATE.tasks : [];
+  const pct = x => x.status === "done" ? 100 : Math.max(0, Math.min(100, Math.round(Number(x.progress) || 0)));
+  const n = st => tasks.filter(x => st.includes(x.status)).length;
+  const overall = tasks.length ? Math.round(tasks.reduce((a, x) => a + pct(x), 0) / tasks.length) : 0;
+  const pill = (txt, s) => '<span class="o-pill" style="background:' + s.bg + ';color:' + s.c + '">' + esc(txt) + "</span>";
+  const phaseS = { clarify: S.planned, plan: S.planned, running: S.running, integrating: S.rework, done: S.done }[STATE.phase] || S.planned;
+
+  let h = '<div class="o-top"><span style="font-size:16px;font-weight:500">' + esc(STATE.title) + "</span>" + pill(t.phase[STATE.phase] || STATE.phase || "", phaseS);
+  if (STATE.base_branch) h += '<span class="o-mono">' + t.base + ": " + esc(STATE.base_branch) + "</span>";
+  if (STATE.updated) h += '<span class="o-mono" style="margin-left:auto">' + t.updated + " " + esc(STATE.updated) + "</span>";
+  h += "</div>";
+  if (STATE.goal) h += '<p style="font-size:14px;color:var(--text-secondary);margin:0 0 12px;line-height:1.5">' + esc(STATE.goal) + "</p>";
+
+  const met = [[t.total, tasks.length, "var(--text-primary)"], [t.done, n(["done"]), "var(--text-success)"], [t.running, n(["running"]), "var(--text-accent)"], [t.blocked, n(["blocked", "rework", "failed"]), "var(--text-warning)"]];
+  h += '<div class="o-met">' + met.map(m => '<div><div style="font-size:13px;color:var(--text-secondary)">' + m[0] + '</div><div style="font-size:24px;font-weight:500;color:' + m[2] + '">' + m[1] + "</div></div>").join("") + "</div>";
+  h += '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-secondary);margin-bottom:6px"><span>' + t.overall + "</span><span>" + overall + '%</span></div><div class="o-bar"><i style="width:' + overall + '%;background:var(--text-success)"></i></div>';
+
+  const waves = [...new Set(tasks.map(x => Number(x.wave) || 1))].sort((a, b) => a - b);
+  waves.forEach(w => {
+    const ws = tasks.filter(x => (Number(x.wave) || 1) === w);
+    const wd = ws.filter(x => x.status === "done").length;
+    h += '<div class="o-wave">' + t.wave + " " + w + " · " + wd + "/" + ws.length + '</div><div class="o-list">';
+    ws.forEach(x => {
+      const s = S[x.status] || S.planned, p = pct(x);
+      const deps = (x.depends_on || []).length ? " · " + t.after + " " + x.depends_on.map(esc).join(", ") : "";
+      const meta = [x.session, x.branch].filter(Boolean).map(esc).join(" · ");
+      h += '<div class="o-row"><i class="ti ' + s.i + '" style="font-size:18px;color:' + s.c + '" aria-hidden="true"></i><div style="min-width:0">';
+      h += '<div style="font-size:14px"><span class="o-mono" style="color:var(--text-secondary)">' + esc(x.id) + "</span> " + esc(x.title) + '<span style="font-size:12px;color:var(--text-muted)">' + deps + "</span></div>";
+      if (meta) h += '<div class="o-mono">' + meta + "</div>";
+      if (x.note) h += '<div class="o-note" title="' + esc(x.note) + '">' + esc(x.note) + "</div>";
+      h += '</div><div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' + pill(t.st[x.status] || x.status, s) + '<span style="font-size:12px;color:var(--text-secondary)">' + p + '%</span></div><div class="o-bar"><i style="width:' + p + "%;background:" + s.bar + '"></i></div>';
+      h += '<button class="o-btn" data-id="' + esc(x.id) + '">' + t.details + " ↗</button></div></div>";
+    });
+    h += "</div>";
+  });
+
+  const log = (Array.isArray(STATE.log) ? STATE.log : []).slice(-5).reverse();
+  if (log.length) {
+    h += '<div class="o-wave">' + t.log + "</div>";
+    h += log.map(e => '<div style="font-size:13px;color:var(--text-secondary);padding:2px 0"><span class="o-mono">' + esc(e.t) + "</span> " + esc(e.msg) + "</div>").join("");
+  }
+  h += '<div style="margin-top:14px"><button id="o-refresh"><i class="ti ti-refresh" aria-hidden="true"></i> ' + t.refresh + " ↗</button></div>";
+
+  document.getElementById("o-root").innerHTML = h;
+  document.getElementById("o-sr").textContent = (STATE.title || "Orchestration") + ": " + n(["done"]) + "/" + tasks.length + " " + t.done.toLowerCase() + ", " + overall + "%";
+  document.getElementById("o-refresh").addEventListener("click", () => sendPrompt(t.pRefresh));
+  document.querySelectorAll(".o-btn").forEach(b => b.addEventListener("click", () => sendPrompt(t.pDetails(b.dataset.id))));
+})();
+</script>

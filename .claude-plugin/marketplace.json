@@ -1,0 +1,12 @@
+{
+  "name": "orchestrate-skill",
+  "owner": { "name": "Nicat Ahmadov" },
+  "description": "Multi-session orchestration skill for Claude Code: clarify, split into parallel sessions, supervise with a live dashboard.",
+  "plugins": [
+    {
+      "name": "orchestrate",
+      "source": "./",
+      "description": "Clarify a big task, split it into parallel Claude Code desktop sessions, supervise them and show a live progress dashboard."
+    }
+  ]
+}
