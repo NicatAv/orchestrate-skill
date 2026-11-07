@@ -1,7 +1,5 @@
 # orchestrate — a Claude Code skill for multi-session work
 
-[Русская версия ниже](#русский)
-
 Hand Claude Code a big job and let the current session become a **coordinator**:
 
 1. **Clarify** — it inspects the repo, then interviews you until nothing that would change the result is left open, and writes a short spec (goal, acceptance criteria, non-goals).
@@ -55,18 +53,3 @@ The coordinator never merges, pushes, opens PRs, deletes or installs anything wi
 ## License
 
 MIT
-
----
-
-## Русский
-
-Скилл для Claude Code: текущая сессия становится **координатором** большой задачи.
-
-1. **Уточнение** — изучает репозиторий и задаёт вопросы, пока не останется ничего, что меняет результат; пишет краткое ТЗ.
-2. **Разбиение** — задачи с непересекающимися файлами, волны по зависимостям (до 4 параллельно), общие контракты — первыми.
-3. **Одно подтверждение** — план показывается дашбордом, вы отвечаете «запускать?».
-4. **Запуск** — каждая задача — отдельная сессия desktop-приложения в своём worktree и ветке.
-5. **Контроль** — координатор просыпается по отчётам сессий, проверяет ветки, отвечает на блокеры, запускает следующие волны, обновляет дашборд.
-6. **Интеграция** — merge только с вашего согласия, затем сборка, тесты и отчёт по критериям приёмки.
-
-Установка и использование — см. разделы Install и Use выше.
