@@ -15,7 +15,8 @@ in Phase 1 and disciplined about scope boundaries in Phase 2.
 
 **Tools it relies on** (Claude desktop app, Code tab). Load deferred ones with `ToolSearch` in one call:
 `mcp__ccd_session__start_session`, `mcp__ccd_session_mgmt__list_sessions`, `SendMessage`,
-`mcp__ccd_session__mark_chapter`, `AskUserQuestion`, `mcp__visualize__read_me`, `mcp__visualize__show_widget`.
+`mcp__ccd_session__mark_chapter`, `AskUserQuestion`, `mcp__visualize__read_me`, `mcp__visualize__show_widget`;
+`mcp__ccd_session_mgmt__stop_session` only when stopping a run.
 If `start_session` does not exist (plain terminal CLI), use the Fallback section.
 
 ---
@@ -31,20 +32,27 @@ Long runs get their context compacted, so never keep the plan only in your head.
   "lang": "ru",
   "title": "Short name of the job",
   "goal": "One sentence",
-  "phase": "clarify | plan | running | integrating | done",
+  "phase": "clarify | plan | running | integrating | done | aborted",
   "base_branch": "main",
   "updated": "2026-11-07 14:32",
+  "worker_permission_mode": "acceptEdits",
   "spec": { "acceptance": ["..."], "non_goals": ["..."], "constraints": ["..."], "assumptions": ["..."] },
+  "shared_resources": [
+    { "what": "DB migration numbers", "rule": "T1 uses V12–V14, T2 uses V15–V17" },
+    { "what": "Heavy builds (Gradle)", "rule": "full build only by the coordinator; workers run module tests" }
+  ],
   "tasks": [
     { "id": "T1", "title": "API endpoints", "wave": 1, "status": "planned",
-      "progress": 0, "depends_on": [], "owns": ["src/api/"],
-      "session": "t1-api", "session_id": "local_…", "branch": "…", "note": "last status line" }
+      "progress": 0, "depends_on": [], "owns": ["src/api/"], "size": "M", "rework": 0,
+      "session": "t1-api", "session_id": "local_…", "branch": "refs/heads/<actual name>",
+      "note": "last status line" }
   ],
   "log": [ { "t": "14:30", "msg": "Wave 1 started: T1, T2, T3" } ]
 }
 ```
 
 `status` is one of `planned | running | blocked | rework | done | failed`.
+`branch` is always the **actual** branch name, never the slug you passed as `branch_name` (see Phase 4).
 
 **On start**, check for an existing state file. If it has unfinished tasks, ask whether to resume
 it (then jump to Phase 5) or start a new job (archive the old file as `state-<date>.json`).
@@ -81,8 +89,20 @@ Rules for tasks:
 - **Contracts first.** If pieces depend on a shared interface (API schema, types, DB schema), make
   it task `T0`, done by you in this session and committed to the base branch *before* wave 1, so
   every worktree starts with it. The plan the user approves must say this commit will happen.
+- **Hidden collisions.** Disjoint paths are not enough. Before finalizing, list in
+  `shared_resources` everything two workers could still collide on, and give each a rule:
+  - sequence numbers and names: DB migration versions, generated IDs, resource/route names;
+  - generated or aggregated files: DI graphs, codegen output, `R`/resource indexes, snapshot files —
+    either one owner, or nobody commits them and the coordinator regenerates during integration;
+  - runtime resources used while testing: dev-server ports, a shared local database or emulator,
+    fixed temp paths;
+  - machine capacity: heavy builds (Gradle/Xcode/large monorepos) run in N worktrees at once can
+    exhaust RAM. Prefer module-level tests in workers and a single full build by the coordinator,
+    or fewer parallel sessions.
+  Each worker's brief repeats the rules that concern it.
 - **Each task has**: `id`, `title`, goal, `owns`, deliverable, verifiable done criteria (commands
-  or tests), `depends_on`, size S/M/L, and optionally a cheaper `model` for mechanical work.
+  or tests), `depends_on`, size S/M/L, and optionally a cheaper `model` / lower `effort` for
+  mechanical work.
 - **Waves.** Group by dependencies. Default ≤4 parallel sessions per wave (rate limits and your own
   review capacity). A task with exactly one dependency starts from that dependency's branch
   (`source_branch`). A task with several dependencies needs them merged first — that requires the
@@ -92,13 +112,29 @@ Rules for tasks:
 ## Phase 3 — Show the plan, get one confirmation
 
 1. Render the dashboard (all tasks `planned`, phase `plan`) — see Dashboard below.
-2. Under it, in prose: the waves, what each session does, which paths it owns, and anything you
-   will commit (T0).
-3. Ask one `AskUserQuestion`: "Launch N sessions according to this plan?" → options
-   "Launch (Recommended)" / "Change the plan". The user's yes is the request to start those sessions.
+2. Under it, in prose: the waves, what each session does, which paths it owns, the
+   `shared_resources` rules, and anything you will commit (T0).
+3. **Cost estimate**, one line, honest and rough: number of sessions, their sizes and models
+   (e.g. "5 sessions: 2×M on Sonnet, 2×S on Haiku, 1×L on the session model"), plus your own
+   supervision. Say that a parallel run spends tokens faster than doing it sequentially.
+4. One `AskUserQuestion` call with two questions:
+   - "Launch N sessions according to this plan?" → "Launch (Recommended)" / "Change the plan".
+   - "How should workers handle file edits?" → "Accept edits automatically (Recommended)"
+     (`acceptEdits`) / "Ask me in each session" (`default`). With `default` the user has to approve
+     prompts in N separate sessions — say so. Never offer a mode above this session's own: the
+     app refuses it. Store the answer as `worker_permission_mode`.
+   The user's yes is the request to start those sessions.
 
 After the yes, run to the end without further approvals **except**: merging branches, anything
-destructive, pushing/PRs, and questions the spec cannot answer.
+destructive, pushing/PRs, questions the spec cannot answer, and the limits below.
+
+**Limits** (state them in the plan; they trigger a question to the user, not a silent retry):
+- a task goes back to `rework` at most **2** times; the third failed verification makes it
+  `failed`;
+- a task is `failed` when it reports the same BLOCKED twice after an answer, when its session
+  fails to start or errors out, or when it hits a limit above;
+- on any `failed` task, stop launching new waves that depend on it and ask the user: retry with a
+  new brief, do it in this session, or drop it from scope.
 
 ## Phase 4 — Launch a wave
 
@@ -109,12 +145,27 @@ destructive, pushing/PRs, and questions the spec cannot answer.
    - `title`, `name` (`t1-api` style, ≤24 chars), `branch_name` (`orch-t1-api`)
    - `prompt`: the worker brief built from `references/worker-brief.md`
    - `background` (≥80 chars): goal, key spec points, how this piece fits with the others
-   - `source_branch`: the dependency's branch for single-dependency tasks
-   - `model`: only when the task is mechanical and a cheaper model fits
-3. Store `session_id` (`local_…`), `name`, branch in the state file; status `running`; log it;
+   - `source_branch`: the dependency's **actual** branch for single-dependency tasks
+   - `permission_mode`: `worker_permission_mode` from Phase 3
+   - `model` / `effort`: only when the task is mechanical and a cheaper model or lower effort fits
+3. **Record the actual branch.** `branch_name` is only a slug: the app adds the user's branch
+   prefix and a suffix, so `orch-t1-api` may become `nicat/orch-t1-api-x7f2`. Take the real name
+   from the `start_session` result; if it doesn't show one, from the worker's first report, or
+   find it with `git branch --list '*orch-t1-api*'` / `git worktree list`. Store it as
+   `refs/heads/<name>`. Every later `git log`/`git diff`/`source_branch`/merge uses this value.
+4. Store `session_id` (`local_…`), `name`, branch in the state file; status `running`; log it;
    re-render the dashboard.
-4. **End your turn.** Do not poll — the app wakes you with a `<side-sessions-event>` message when
-   workers finish a turn.
+5. **If a start is refused.** The app refuses `start_session` with `user_asked` on a turn that
+   was started by another session's message (for example a worker's `SendMessage`) or by an
+   automated event other than a `<side-sessions-event>` chained to the user's own turn. Then:
+   don't retry; re-issue the same call with `initiation: "own_initiative"` so it shows as a card,
+   set the task's note to "waiting for you to start", and tell the user in one line:
+   "Wave N is ready — press Start on the cards (or say 'launch wave N')". When they say so, start
+   it with the card's `proposal_id`.
+6. **End your turn.** Do not poll — the app wakes you with a `<side-sessions-event>` message when
+   workers finish a turn. After many such wake-ups in a row with no message from the user, the app
+   holds further notes until the user writes; if workers are still running at that point, say so
+   and ask the user to send any message (e.g. "status") to continue supervision.
 
 ## Phase 5 — Supervise
 
@@ -129,10 +180,28 @@ On every wake-up (a `<side-sessions-event>`, a cross-session message, or the use
 4. **Blocked:** if the spec answers it, reply with `SendMessage` to the worker's `local_…` id. If not,
    ask the user and forward their exact words. Never ask a worker to do something that was denied
    or would be blocked in this session.
-5. **Rework:** send concrete issues via `SendMessage`; status `rework`.
-6. **Stalled** (idle, no status line): ask it once for a status line.
-7. Update the state file and re-render the dashboard — only when something changed.
-8. When a wave's dependencies are all `done` and verified, launch the next wave (already approved).
+5. **Rework:** send concrete issues via `SendMessage`; status `rework`; increment `rework`. Past
+   the limit (Phase 3), mark it `failed` and ask the user instead.
+6. **Stalled** (idle, no status line): ask it once for a status line. Still nothing on the next
+   wake-up → `failed`.
+7. **Scope creep in workers.** If a worker started or proposed other sessions, or edited outside
+   `owns`, tell it to stop and revert those changes; record it in the log.
+8. Update the state file and re-render the dashboard — only when something changed.
+9. When a wave's dependencies are all `done` and verified, launch the next wave (already approved;
+   see Phase 4 step 5 if the start is refused).
+
+## Stopping a run
+
+When the user says stop / cancel / pause, or a `failed` task makes the rest pointless:
+
+1. Load `mcp__ccd_session_mgmt__stop_session` and stop every worker that is `running`, `blocked`
+   or `rework`. Don't archive or delete anything, and don't delete branches or worktrees.
+2. Set those tasks back to `planned` (pause) or leave them as they are with a note (cancel); phase
+   `aborted` for a cancel; log it; re-render the dashboard.
+3. Report what exists: each worker branch by full ref with its commit count
+   (`git rev-list --count <base>..<branch>`), what was verified, what was not.
+4. A paused run resumes through the "On start" check: tasks still `planned` are relaunched,
+   finished ones keep their branches.
 
 For a live peek at a still-running session when the user asks, `mcp__ccd_session_mgmt__list_events`
 shows its latest activity; don't do this routinely. Progress percentages come only from worker
