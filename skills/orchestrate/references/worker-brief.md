@@ -21,6 +21,13 @@ make it — report BLOCKED with the exact change you need. The coordinator decid
 {CONTRACTS: API shapes / types / schema this task must follow, or where T0 committed them}
 {CONVENTIONS: build and test commands, code style notes worth repeating}
 
+## Shared resources (other workers run at the same time)
+{RULES FROM shared_resources THAT CONCERN THIS TASK, e.g.:
+ - Migration numbers: use only V15–V17.
+ - Don't commit generated `{FILE}`; the coordinator regenerates it.
+ - Dev server: port {PORT} only.
+ - Run module tests `{CMD}`; don't run the full build — the coordinator does.}
+
 ## Done means
 - {VERIFIABLE CRITERION 1}
 - {VERIFIABLE CRITERION 2}
@@ -29,7 +36,9 @@ make it — report BLOCKED with the exact change you need. The coordinator decid
 ## Rules
 - Work only in your own worktree and branch. When finished, commit your work to your branch
   with clear messages; that is how the coordinator collects it. Don't push, open PRs, or merge
-  other branches.
+  other branches. Don't rename or switch your branch.
+- You are a leaf worker: don't start, propose or hand off other sessions, and don't split this
+  task further. If it turns out too big for one session, report BLOCKED with a proposed split.
 - Don't add dependencies unless this brief lists them.
 - Don't ask the user for decisions this brief already covers. If truly blocked, stop and report
   BLOCKED with one precise question.
@@ -41,6 +50,7 @@ Start your end-of-turn recap AND your final message with exactly one status line
   [{ID}] DONE 100% — <one-line result>
   [{ID}] IN_PROGRESS <n>% — <done so far / next step>
   [{ID}] BLOCKED — <one precise question>
-For DONE, follow with: files changed, commands run with pass/fail, known gaps.
+For DONE, follow with: your branch name (`git branch --show-current`), files changed, commands
+run with pass/fail, known gaps.
 The status line must come first: the coordinator only sees the first ~400 characters.
 ```

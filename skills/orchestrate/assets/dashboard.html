@@ -20,11 +20,11 @@ const STATE = {"lang":"ru","title":"Demo","goal":"","phase":"plan","base_branch"
 (function () {
   const L = {
     ru: { total: "Задач", done: "Готово", running: "В работе", blocked: "Нужно внимание", wave: "Волна", after: "после", overall: "Общий прогресс", log: "Последние события", refresh: "Обновить статус", details: "Подробнее", updated: "обновлено", base: "база",
-      phase: { clarify: "Уточнение", plan: "План", running: "Выполнение", integrating: "Интеграция", done: "Завершено" },
+      phase: { clarify: "Уточнение", plan: "План", running: "Выполнение", integrating: "Интеграция", done: "Завершено", aborted: "Остановлено" },
       st: { planned: "Запланировано", running: "В работе", blocked: "Заблокировано", rework: "Доработка", done: "Готово", failed: "Ошибка" },
       pRefresh: "Обнови статус оркестрации и дашборд", pDetails: id => "Покажи подробности по задаче " + id },
     en: { total: "Tasks", done: "Done", running: "Running", blocked: "Needs attention", wave: "Wave", after: "after", overall: "Overall progress", log: "Recent events", refresh: "Refresh status", details: "Details", updated: "updated", base: "base",
-      phase: { clarify: "Clarifying", plan: "Plan", running: "Running", integrating: "Integrating", done: "Done" },
+      phase: { clarify: "Clarifying", plan: "Plan", running: "Running", integrating: "Integrating", done: "Done", aborted: "Stopped" },
       st: { planned: "Planned", running: "Running", blocked: "Blocked", rework: "Rework", done: "Done", failed: "Failed" },
       pRefresh: "Refresh the orchestration status and dashboard", pDetails: id => "Show details for task " + id }
   };
@@ -43,7 +43,7 @@ const STATE = {"lang":"ru","title":"Demo","goal":"","phase":"plan","base_branch"
   const n = st => tasks.filter(x => st.includes(x.status)).length;
   const overall = tasks.length ? Math.round(tasks.reduce((a, x) => a + pct(x), 0) / tasks.length) : 0;
   const pill = (txt, s) => '<span class="o-pill" style="background:' + s.bg + ';color:' + s.c + '">' + esc(txt) + "</span>";
-  const phaseS = { clarify: S.planned, plan: S.planned, running: S.running, integrating: S.rework, done: S.done }[STATE.phase] || S.planned;
+  const phaseS = { clarify: S.planned, plan: S.planned, running: S.running, integrating: S.rework, done: S.done, aborted: S.failed }[STATE.phase] || S.planned;
 
   let h = '<div class="o-top"><span style="font-size:16px;font-weight:500">' + esc(STATE.title) + "</span>" + pill(t.phase[STATE.phase] || STATE.phase || "", phaseS);
   if (STATE.base_branch) h += '<span class="o-mono">' + t.base + ": " + esc(STATE.base_branch) + "</span>";

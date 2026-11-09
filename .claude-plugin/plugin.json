@@ -1,6 +1,6 @@
 {
   "name": "orchestrate",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Clarify a big task, split it into parallel Claude Code desktop sessions, supervise them from one coordinator session and show a live progress dashboard.",
   "author": { "name": "Nicat Ahmadov" },
   "license": "MIT",
